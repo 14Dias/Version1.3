@@ -388,7 +388,8 @@ struct LoadingView: View {
             ProgressView()
                 .scaleEffect(1.2)
                 .tint(.blue)
-            Text("Carregando...")
+            Image(systemName: "figure.strengthtraining.traditional");
+            Text("Trainar")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .padding(.top, 8)

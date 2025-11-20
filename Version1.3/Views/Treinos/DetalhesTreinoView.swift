@@ -21,8 +21,8 @@ struct DetalhesTreinoView: View {
                         
                         HStack(spacing: 20) {
                             Label("\(exercicio.series) séries", systemImage: "repeat")
-                            Label("\(exercicio.repeticoes) reps", systemImage: "number")
-                            Label("\(exercicio.peso) Kg's", systemImage: "weight")
+                            Label("\(exercicio.repeticoes) Reps", systemImage: "number")
+                            Label("\(exercicio.peso) Kg's", systemImage: "scalemass")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

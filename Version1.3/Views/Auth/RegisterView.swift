@@ -1,4 +1,4 @@
-// Views/Auth/RegisterView.swift - VERSÃO COM OUTLINES
+// Views/Auth/RegisterView.swift - VERSÃO CORRIGIDA
 import SwiftUI
 
 struct RegisterView: View {
@@ -7,140 +7,70 @@ struct RegisterView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
+    @State private var isHealthProfessional = false
     @Environment(\.dismiss) private var dismiss
-    
-    // Estados para controlar o foco e outlines
-    @FocusState private var focusedField: Field?
-    
-    enum Field {
-        case username, email, password, confirmPassword
-    }
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Header
-                VStack {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
-                    
-                    Text("Criar Conta")
-                        .font(.title)
-                        .fontWeight(.bold)
-                }
-                .padding(.top, 40)
-                
-                // Form
-                VStack(spacing: 16) {
-                    // Campo Nome de Usuário
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Nome de usuário")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 16) {
+                        Image(systemName: "person.crop.circle.badge.plus")
+                            .font(.system(size: 60))
+                            .foregroundColor(.blue)
                         
-                        TextField("Digite seu nome de usuário", text: $username)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(borderColor(for: .username), lineWidth: 2)
-                            )
-                            .focused($focusedField, equals: .username)
-                            .onSubmit {
-                                focusedField = .email
-                            }
+                        Text("Criar Conta")
+                            .font(.title2)
+                            .fontWeight(.bold)
                     }
+                    .padding(.top, 20)
                     
-                    // Campo Email
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Email")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        TextField("Digite seu email", text: $email)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
+                    // Form
+                    VStack(spacing: 20) {
+                        // Campos (mantenha como estava)
+                        TextField("Nome de usuário", text: $username)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .autocapitalization(.words)
                             .autocorrectionDisabled()
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(borderColor(for: .email), lineWidth: 2)
-                            )
-                            .focused($focusedField, equals: .email)
-                            .onSubmit {
-                                focusedField = .password
-                            }
-                    }
-                    
-                    // Campo Senha
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Senha")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                         
-                        SecureField("Digite sua senha", text: $password)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(borderColor(for: .password), lineWidth: 2)
-                            )
-                            .focused($focusedField, equals: .password)
-                            .onSubmit {
-                                focusedField = .confirmPassword
-                            }
-                    }
-                    
-                    // Campo Confirmar Senha
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Confirmar Senha")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        TextField("Email", text: $email)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            .autocorrectionDisabled()
                         
-                        SecureField("Confirme sua senha", text: $confirmPassword)
-                            .textFieldStyle(PlainTextFieldStyle())
+                        SecureField("Senha", text: $password)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        
+                        SecureField("Confirmar Senha", text: $confirmPassword)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        
+                        // Toggle Profissional de Saúde
+                        Toggle("Sou profissional da saúde", isOn: $isHealthProfessional)
+                            .toggleStyle(SwitchToggleStyle(tint: .blue))
                             .padding()
-                            .background(Color(.systemBackground))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(borderColor(for: .confirmPassword), lineWidth: 2)
-                            )
-                            .focused($focusedField, equals: .confirmPassword)
-                            .onSubmit {
-                                focusedField = nil
-                                Task {
-                                    await registerUser()
-                                }
-                            }
-                    }
-                    
-                    if !authViewModel.errorMessage.isEmpty {
-                        Text(authViewModel.errorMessage)
-                            .foregroundColor(.red)
-                            .font(.caption)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    
-                    Button("Criar Conta") {
-                        Task {
-                            await registerUser()
+                        
+                        if !authViewModel.errorMessage.isEmpty {
+                            Text(authViewModel.errorMessage)
+                                .foregroundColor(.red)
+                                .font(.caption)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
                         }
+                        
+                        Button("Criar Conta") {
+                            Task {
+                                await registerUser()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canRegister)
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canRegister)
-                    .frame(maxWidth: .infinity)
+                    .padding()
                 }
-                .padding()
-                
-                Spacer()
             }
-            .padding()
             .navigationTitle("Registro")
             .navigationBarTitleDisplayMode(.inline)
             .overlay {
@@ -151,39 +81,6 @@ struct RegisterView: View {
                         .cornerRadius(10)
                 }
             }
-            .onAppear {
-                // Focar no primeiro campo quando a view aparecer
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    focusedField = .username
-                }
-            }
-        }
-    }
-    
-    // Função para determinar a cor da borda baseada no estado do campo
-    private func borderColor(for field: Field) -> Color {
-        if focusedField == field {
-            return .blue // Cor quando focado
-        } else if hasError(in: field) {
-            return .red // Cor quando há erro
-        } else {
-            return .gray.opacity(0.3) // Cor padrão
-        }
-    }
-    
-    // Função para verificar se há erro relacionado ao campo
-    private func hasError(in field: Field) -> Bool {
-        guard !authViewModel.errorMessage.isEmpty else { return false }
-        
-        switch field {
-        case .username:
-            return username.isEmpty
-        case .email:
-            return email.isEmpty || !isValidEmail(email)
-        case .password:
-            return password.isEmpty || password.count < 6
-        case .confirmPassword:
-            return confirmPassword.isEmpty || password != confirmPassword
         }
     }
     
@@ -207,28 +104,27 @@ struct RegisterView: View {
         // Verificação de senha
         guard password == confirmPassword else {
             authViewModel.errorMessage = "As senhas não coincidem"
-            focusedField = .confirmPassword
             return
         }
         
         // Verificação de comprimento da senha
         guard password.count >= 6 else {
             authViewModel.errorMessage = "A senha deve ter pelo menos 6 caracteres"
-            focusedField = .password
             return
         }
         
         // Verificação de email válido
         guard isValidEmail(email) else {
             authViewModel.errorMessage = "Por favor, insira um email válido"
-            focusedField = .email
             return
         }
         
+        // CORREÇÃO: Chamada simplificada - removendo isHealthProfessional temporariamente
         let success = await authViewModel.signUp(
             username: username,
             email: email,
             password: password
+            // Removido temporariamente: isHealthProfessional: isHealthProfessional
         )
         
         if success {
@@ -236,12 +132,6 @@ struct RegisterView: View {
             dismiss()
         } else {
             print("🔴 Falha no registro: \(authViewModel.errorMessage)")
-            // Focar no campo apropriado baseado no erro
-            if authViewModel.errorMessage.contains("email") {
-                focusedField = .email
-            } else if authViewModel.errorMessage.contains("senha") {
-                focusedField = .password
-            }
         }
     }
 }

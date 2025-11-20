@@ -1,4 +1,3 @@
-// Services/AuthService.swift
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
@@ -13,11 +12,12 @@ class AuthService: ObservableObject {
     private init() {}
     
     // MARK: - Authentication Methods
-    func signUp(username: String, email: String, password: String) async throws {
+    func signUp(username: String, email: String, password: String, isHealthProfessional: Bool = false) async throws {
         print("🟡 AuthService: Iniciando signUp")
         print("📧 Email: \(email)")
         print("👤 Username: \(username)")
         print("🔐 Password length: \(password.count)")
+        print ("👩‍⚕️ Health Professional: \(isHealthProfessional)")
         
         // Verificar se o Firebase está configurado
         guard FirebaseApp.app() != nil else {
@@ -259,6 +259,40 @@ extension AuthService {
                 print("✅ Dados do usuário Google salvos no Firestore")
             }
         }
+    // Services/AuthService.swift - OTIMIZAÇÕES
+   
+        func quickSignIn(email: String, password: String) async throws {
+            // Método simplificado e rápido
+            try await Auth.auth().signIn(withEmail: email, password: password)
+        }
+        
+        func quickSignUp(username: String, email: String, password: String, isHealthProfessional: Bool = false) async throws {
+            // Criação rápida de usuário
+            let result = try await Auth.auth().createUser(withEmail: email, password: password)
+            let user = result.user
+            
+            // Atualização do display name de forma assíncrona
+            async let profileUpdate: Void = {
+                let changeRequest = user.createProfileChangeRequest()
+                changeRequest.displayName = username
+                try await changeRequest.commitChanges()
+            }()
+            
+            // Salvamento no Firestore de forma assíncrona
+            async let firestoreSave: Void = {
+                let userData = User(
+                    username: username,
+                    email: email,
+                    userUID: user.uid,
+                    isHealthProfessional: isHealthProfessional
+                )
+                try await firestoreService.saveUserData(user: userData)
+            }()
+            
+            // Aguarda ambas as operações
+            _ = try await (profileUpdate, firestoreSave)
+        }
     }
+    
 
 

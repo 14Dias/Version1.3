@@ -10,25 +10,21 @@ struct LoginView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 30) {
+            VStack(spacing: 25) {
                 // Header
                 VStack(spacing: 10) {
                     Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 80))
+                        .font(.system(size: 70))
                         .foregroundColor(.blue)
                     
                     Text("Trainar")
-                        .font(.system(size: 48, weight: .bold))
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
-                    
-                    Text("Faça login para continuar")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
                 }
-                .padding(.top, 60)
+                .padding(.top, 40)
                 
                 // Form
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     TextField("Email", text: $email)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .textInputAutocapitalization(.never)
@@ -45,11 +41,9 @@ struct LoginView: View {
                             .multilineTextAlignment(.center)
                     }
                     
+                    // Botão Entrar (Email)
                     Button(action: {
-                        // CORREÇÃO: Chamada direta sem usar binding
-                        Task {
-                            await authViewModel.signIn(email: email, password: password)
-                        }
+                        Task { await authViewModel.signIn(email: email, password: password) }
                     }) {
                         Text("Entrar")
                             .fontWeight(.semibold)
@@ -60,7 +54,41 @@ struct LoginView: View {
                             .cornerRadius(10)
                     }
                     .disabled(authViewModel.isLoading || email.isEmpty || password.isEmpty)
-                    .opacity((authViewModel.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
+                    .opacity((authViewModel.isLoading || email.isEmpty || password.isEmpty) ? 0.7 : 1.0)
+                    
+                    // Divisor
+                    HStack {
+                        Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.3))
+                        Text("OU").font(.caption).foregroundColor(.secondary)
+                        Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.3))
+                    }
+                    .padding(.vertical, 5)
+                    
+                    // Botão Google (NOVO)
+                    Button {
+                        Task { await authViewModel.signInWithGoogle() }
+                    } label: {
+                        HStack {
+                            Image("google") // Use "Google" se tiver o asset, senão um ícone genérico ou texto
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 30) 
+                                .font(.title3)
+                            
+                            Text("Entrar com Google")
+                                .fontWeight(.medium)
+                                .foregroundColor(.blue)
+                        }
+                        .foregroundColor(.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                    }
                 }
                 .padding(.horizontal, 30)
                 
@@ -89,18 +117,18 @@ struct LoginView: View {
             }
             .overlay {
                 if authViewModel.isLoading {
-                    ProgressView("Entrando...")
-                        .padding()
-                        .background(Color(.systemBackground))
-                        .cornerRadius(10)
-                        .shadow(radius: 10)
+                    ZStack {
+                        Color.black.opacity(0.2).ignoresSafeArea()
+                        ProgressView("Processando...")
+                            .padding()
+                            .background(Color(.systemBackground))
+                            .cornerRadius(10)
+                    }
                 }
             }
         }
     }
 }
-
 #Preview {
     LoginView()
-        .environmentObject(AuthViewModel())
 }

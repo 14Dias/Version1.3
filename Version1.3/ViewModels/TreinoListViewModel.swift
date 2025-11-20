@@ -4,53 +4,54 @@ import Combine
 
 @MainActor
 class TreinoListViewModel: ObservableObject {
+    // MARK: - Published Properties
     @Published var treinos: [Treino] = []
+    @Published var favoritosIds: Set<String> = [] // Armazena IDs dos favoritos para acesso rápido
     @Published var isLoading = false
     @Published var errorMessage = ""
     @Published var ultimaAtualizacao = Date()
+    @Published var mostrarLimiteAlert = false // Controla o alerta de limite na View
     
     private let firestoreService = FirestoreService()
     private var listenerAtivo = false
+    
+    // MARK: - UserUID Logic
     private var _userUID: String = "" {
         didSet {
             if !_userUID.isEmpty && oldValue != _userUID {
                 print("🟢 UserUID atualizado no ViewModel: \(_userUID)")
                 iniciarListener()
+                carregarFavoritos()
             }
         }
     }
     
-    // Propriedade computada para acesso seguro
     var userUID: String {
         return _userUID
     }
     
-    init(userUID: String) {
+    init(userUID: String = "") {
         print("🟡 TreinoListViewModel inicializado")
         if !userUID.isEmpty {
             self._userUID = userUID
             iniciarListener()
+            carregarFavoritos()
         }
+    }
+    
+    // Alias para manter compatibilidade com a View
+    func setup(userUID: String) {
+        atualizarUserUID(userUID)
     }
     
     func atualizarUserUID(_ novoUserUID: String) {
-        guard !novoUserUID.isEmpty else {
-            print("🔴 UserUID vazio recebido - ignorando")
-            return
-        }
-        
-        // SEMPRE atualizar, mesmo se for o mesmo (para casos de inicialização vazia)
-        print("🟢 Atualizando UserUID de '\(_userUID)' para '\(novoUserUID)'")
+        guard !novoUserUID.isEmpty else { return }
         self._userUID = novoUserUID
     }
     
+    // MARK: - Listeners & Loading
     func iniciarListener() {
-        guard !_userUID.isEmpty else {
-            print("🔴 UserUID vazio - não é possível iniciar listener")
-            return
-        }
-        
-        print("🟢 INICIANDO LISTENER para UserUID: \(_userUID)")
+        guard !_userUID.isEmpty else { return }
         
         if listenerAtivo {
             firestoreService.stopListeners()
@@ -63,6 +64,8 @@ class TreinoListViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self.treinos = treinosAtualizados
                 self.ultimaAtualizacao = Date()
+                self.isLoading = false
+                self.sincronizarFavoritos() // Atualiza os ícones de estrela
                 print("✅ Listener atualizado: \(treinosAtualizados.count) treinos")
             }
         }
@@ -70,12 +73,10 @@ class TreinoListViewModel: ObservableObject {
     
     func carregarTreinos() {
         guard !_userUID.isEmpty else {
-            print("🔴 UserUID vazio - não é possível carregar treinos")
             errorMessage = "Usuário não autenticado"
             return
         }
         
-        print("🟢 CARREGANDO TREINOS para UserUID: \(_userUID)")
         isLoading = true
         errorMessage = ""
         
@@ -85,46 +86,100 @@ class TreinoListViewModel: ObservableObject {
                 await MainActor.run {
                     self.treinos = treinosCarregados
                     self.isLoading = false
-                    self.ultimaAtualizacao = Date()
-                    print("✅ Carregados \(treinosCarregados.count) treinos do Firestore")
+                    self.sincronizarFavoritos()
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = "Erro ao carregar treinos: \(error.localizedDescription)"
+                    self.errorMessage = "Erro ao carregar: \(error.localizedDescription)"
                     self.isLoading = false
                 }
             }
         }
     }
     
-    // MARK: - Filtro local
-    func treinosFiltrados(por texto: String) -> [Treino] {
-        guard !texto.isEmpty else { return treinos }
-        return treinos.filter { treino in
-            treino.nome.localizedCaseInsensitiveContains(texto)
+    // MARK: - Favoritos Logic
+    func carregarFavoritos() {
+        guard !_userUID.isEmpty else { return }
+        
+        Task {
+            do {
+                let favoritos = try await firestoreService.fetchFavoritos(userUID: _userUID)
+                await MainActor.run {
+                    // Mapeia apenas os IDs dos treinos favoritados
+                    self.favoritosIds = Set(favoritos.map { $0.treinoID })
+                    self.sincronizarFavoritos()
+                }
+            } catch {
+                print("❌ Erro ao carregar favoritos: \(error)")
+            }
         }
     }
     
-    // MARK: - Deletar treino
-    func deletarTreinos(na posicoes: IndexSet) {
-        for index in posicoes {
-            let treino = treinos[index]
-            print("🟡 Iniciando deleção do treino: \(treino.nome)")
-            
-            Task {
-                do {
-                    try await firestoreService.deleteTreino(treino)
+    func toggleFavorito(_ treino: Treino) {
+        guard !_userUID.isEmpty else { return }
+        let treinoID = treino.id
+        
+        Task {
+            do {
+                if favoritosIds.contains(treinoID) {
+                    // Remover
+                    try await firestoreService.removerFavorito(treinoID: treinoID, userUID: _userUID)
                     await MainActor.run {
-                        self.treinos.remove(atOffsets: posicoes)
-                        print("✅ Treino deletado com sucesso: \(treino.nome)")
+                        self.favoritosIds.remove(treinoID)
+                        self.sincronizarFavoritos()
                     }
-                } catch {
+                } else {
+                    // Adicionar (com verificação de limite)
+                    if favoritosIds.count >= 3 {
+                        await MainActor.run { self.mostrarLimiteAlert = true }
+                        return
+                    }
+                    
+                    try await firestoreService.adicionarFavorito(treinoID: treinoID, userUID: _userUID)
                     await MainActor.run {
-                        self.errorMessage = "Erro ao deletar treino: \(error.localizedDescription)"
+                        self.favoritosIds.insert(treinoID)
+                        self.sincronizarFavoritos()
                     }
+                }
+            } catch {
+                print("❌ Erro ao alternar favorito: \(error)")
+                // Se o erro for de limite vindo do backend
+                let nsError = error as NSError
+                if nsError.code == -2 {
+                    await MainActor.run { self.mostrarLimiteAlert = true }
                 }
             }
         }
     }
     
+    // Atualiza a propriedade isFavorito dentro da lista de treinos para a UI reagir
+    private func sincronizarFavoritos() {
+        // Como Treino é uma struct (Value Type), precisamos recriar o array com as alterações
+        // Mas como a View usa o ID do treino para verificar se é favorito na hora de renderizar (via favoritosIds),
+        // essa função é mais para garantir consistência se você tiver uma propriedade 'isFavorito' no modelo Treino.
+        // Se não tiver, a View deve verificar usando: viewModel.favoritosIds.contains(treino.id)
+    }
+    
+    // MARK: - Actions
+    func deletarTreino(_ treino: Treino) {
+        print("🟡 Deletando treino: \(treino.nome)")
+        Task {
+            do {
+                try await firestoreService.deleteTreino(treino)
+                // Listener atualiza automaticamente, mas podemos remover localmente para feedback instantâneo
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Erro ao deletar: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    
+    // Método plural para compatibilidade com .onDelete do List (IndexSet)
+    func deletarTreinos(na posicoes: IndexSet) {
+        for index in posicoes {
+            let treino = treinos[index]
+            deletarTreino(treino)
+        }
+    }
 }

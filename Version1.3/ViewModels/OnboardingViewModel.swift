@@ -1,24 +1,22 @@
-// ViewModels/OnboardingViewModel.swift
+import Combine
 import SwiftUI
 import FirebaseAuth
 import GoogleSignIn
 import FirebaseCore
-import Combine
-
 
 @MainActor
 class OnboardingViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage = ""
     
-    private let authService = AuthService.shared
-    
     func signInWithGoogle() async -> Bool {
         isLoading = true
         errorMessage = ""
         
-        guard let clientID = FirebaseApp.app()?.options.clientID else {
-            errorMessage = "Erro de configuração do Firebase"
+        guard let clientID = FirebaseApp.app()?.options.clientID,
+              let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = windowScene.windows.first?.rootViewController else {
+            errorMessage = "Erro de configuração do app"
             isLoading = false
             return false
         }
@@ -26,38 +24,31 @@ class OnboardingViewModel: ObservableObject {
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
 
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
-            errorMessage = "Não foi possível encontrar a view controller"
-            isLoading = false
-            return false
-        }
-
         do {
             let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
             let user = result.user
+            
             guard let idToken = user.idToken?.tokenString else {
-                throw NSError(domain: "GoogleSignIn", code: -1, userInfo: [NSLocalizedDescriptionKey: "Falha ao obter token do Google"])
+                throw NSError(domain: "GoogleSignIn", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Falha ao obter token do Google"])
             }
 
-            let credential = GoogleAuthProvider.credential(withIDToken: idToken, accessToken: user.accessToken.tokenString)
-            let authResult = try await Auth.auth().signIn(with: credential)
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: user.accessToken.tokenString
+            )
             
-            // Verificar se é um novo usuário ou existente
-            let isNewUser = authResult.additionalUserInfo?.isNewUser ?? false
+            // Login rápido com Firebase
+            try await Auth.auth().signIn(with: credential)
             
-            if isNewUser {
-                // Salvar dados do usuário no Firestore
-                let appUser = User(
-                    username: user.profile?.name ?? "Usuário",
-                    email: user.profile?.email ?? "",
-                    userUID: authResult.user.uid
-                )
-                try await FirestoreService().saveUserData(user: appUser)
+            // Verificação rápida
+            if Auth.auth().currentUser != nil {
+                isLoading = false
+                return true
+            } else {
+                throw NSError(domain: "GoogleSignIn", code: -2,
+                            userInfo: [NSLocalizedDescriptionKey: "Falha na autenticação com Firebase"])
             }
-            
-            isLoading = false
-            return true
             
         } catch {
             errorMessage = "Erro ao fazer login com Google: \(error.localizedDescription)"

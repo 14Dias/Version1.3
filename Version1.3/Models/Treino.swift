@@ -1,15 +1,15 @@
-// Models/Treino.swift
 import Foundation
-import Combine
 
-class Treino: Identifiable, ObservableObject {
-    var id: UUID
+struct Treino: Identifiable, Codable, Hashable {
+    let id: String
     var nome: String
     var data: Date
     var exercicios: [Exercicio]
     var userUID: String
+    var isFavorito: Bool = false // Adicionado para facilitar UI local
     
-    init(id: UUID = UUID(), nome: String, data: Date = Date(), exercicios: [Exercicio] = [], userUID: String) {
+    // Init padrão
+    init(id: String = UUID().uuidString, nome: String, data: Date = Date(), exercicios: [Exercicio] = [], userUID: String) {
         self.id = id
         self.nome = nome
         self.data = data

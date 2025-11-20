@@ -24,10 +24,10 @@ struct MontarTreinoView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(exercicio.nome)
                                 .font(.headline)
-                            Text("\(exercicio.series) séries × \(exercicio.repeticoes) reps")
+                            Text("\(exercicio.series) Séries × \(exercicio.repeticoes) Reps")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            Text("Peso: \(exercicio.peso) kg")
+                            Text("Peso: \(exercicio.peso) Kg")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

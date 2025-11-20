@@ -1,4 +1,4 @@
-// Views/Main/PerfilView.swift - VERSÃO ATUALIZADA
+// Views/Main/PerfilView.swift
 import SwiftUI
 import FirebaseAuth
 
@@ -9,7 +9,7 @@ struct PerfilView: View {
     @State private var logoutError: String?
     
     var body: some View {
-        NavigationView {
+        NavigationStack { // Mudado para NavigationStack para melhor compatibilidade
             VStack(spacing: 20) {
                 // Header com informações do usuário
                 if let user = authViewModel.user {
@@ -45,6 +45,15 @@ struct PerfilView: View {
                         }
                     }
                     
+                    Section("Profissional") {
+                        NavigationLink {
+                            SolicitarProfissionalView()
+                        } label: {
+                            Label("Seja um Profissional", systemImage: "checkmark.seal.fill")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                    
                     Section("App") {
                         NavigationLink {
                             SobreView()
@@ -64,7 +73,6 @@ struct PerfilView: View {
                             DeleteAccountView()
                                 .environmentObject(authViewModel)
                         } label: {
-                            Spacer()
                             Label("Excluir Conta", systemImage: "trash.circle")
                                 .foregroundColor(.red)
                         }
@@ -73,7 +81,6 @@ struct PerfilView: View {
                             showLogoutAlert = true
                         } label: {
                             HStack {
-                                Spacer()
                                 if authViewModel.isLoading {
                                     ProgressView()
                                         .scaleEffect(0.8)
@@ -83,7 +90,6 @@ struct PerfilView: View {
                                     Label("Sair da Conta", systemImage: "rectangle.portrait.and.arrow.right")
                                         .foregroundColor(.red)
                                 }
-                                Spacer()
                             }
                         }
                         .disabled(authViewModel.isLoading)
@@ -137,29 +143,24 @@ struct PerfilView: View {
     }
     
     private func realizarLogout() {
-        print("🟡 Iniciando logout...")
         authViewModel.signOut()
         
-        // Verificar se o logout foi bem-sucedido após um delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             if Auth.auth().currentUser == nil {
-                print("🟢 Logout confirmado - usuário não está mais autenticado")
+                print("🟢 Logout confirmado")
             } else {
-                print("🔴 Logout falhou - usuário ainda autenticado")
                 logoutError = "Não foi possível sair da conta. Tente novamente."
             }
         }
     }
     
     private func abrirAppStore() {
-        // URL genérica - substitua pelo URL do seu app na App Store
-        if let url = URL(string: "https://apps.apple.com/app/idYOUR_APP_ID") {
+        if let url = URL(string: "https://apps.apple.com/app/idSEU_ID") {
             UIApplication.shared.open(url)
         }
     }
 }
 
-// Manter a SobreView como estava
 struct SobreView: View {
     var body: some View {
         VStack(spacing: 20) {
@@ -171,7 +172,7 @@ struct SobreView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
-            Text("Versão MT ALTA")
+            Text("Versão 1.0")
                 .font(.title3)
                 .foregroundColor(.secondary)
             
@@ -182,7 +183,7 @@ struct SobreView: View {
             
             Spacer()
             
-            Text("Desenvolvido com muita raiva e bugs")
+            Text("Desenvolvido com dedicação")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -190,9 +191,4 @@ struct SobreView: View {
         .navigationTitle("Sobre")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
-
-#Preview {
-    PerfilView()
-        .environmentObject(AuthViewModel())
 }

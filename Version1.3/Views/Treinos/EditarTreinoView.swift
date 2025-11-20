@@ -213,7 +213,7 @@ struct ExercicioRowView: View {
                 HStack(spacing: 16) {
                     Label("\(exercicio.series)s", systemImage: "repeat")
                     Label("\(exercicio.repeticoes)r", systemImage: "number")
-                    Label("\(exercicio.peso)kg", systemImage: "weight")
+                    Label("\(exercicio.peso)kg", systemImage: "scalemass")
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)

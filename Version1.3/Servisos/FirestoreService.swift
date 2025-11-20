@@ -1,4 +1,4 @@
-// Services/FirestoreService.swift - VERSÃO CORRIGIDA
+// Services/FirestoreService.swift
 import Foundation
 import FirebaseFirestore
 import Combine
@@ -9,9 +9,7 @@ class FirestoreService {
     
     // MARK: - User Methods
     func saveUserData(user: User) async throws {
-        guard !user.userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
-        }
+        guard !user.userUID.isEmpty else { return }
         
         let userData: [String: Any] = [
             "username": user.username,
@@ -21,245 +19,100 @@ class FirestoreService {
             "updatedAt": Timestamp(date: Date())
         ]
         
-        do {
-            try await db.collection("users").document(user.userUID).setData(userData)
-            print("✅ Dados do usuário salvos no Firestore: \(user.username)")
-        } catch {
-            print("🔴 Erro ao salvar dados do usuário: \(error)")
-            throw error
-        }
+        try await db.collection("users").document(user.userUID).setData(userData, merge: true)
+        print("✅ Dados do usuário salvos/atualizados: \(user.username)")
     }
     
     func fetchUserData(userUID: String) async throws -> User? {
-        guard !userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
+        guard !userUID.isEmpty else { return nil }
+        let document = try await db.collection("users").document(userUID).getDocument()
+        
+        guard let data = document.data(),
+              let username = data["username"] as? String,
+              let email = data["email"] as? String else {
+            return nil
         }
         
-        do {
-            let document = try await db.collection("users").document(userUID).getDocument()
-            
-            guard document.exists,
-                  let data = document.data(),
-                  let username = data["username"] as? String,
-                  let email = data["email"] as? String else {
-                return nil
-            }
-            
-            return User(username: username, email: email, userUID: userUID)
-            
-        } catch {
-            print("🔴 Erro ao buscar dados do usuário: \(error)")
-            throw error
-        }
+        return User(username: username, email: email, userUID: userUID)
     }
     
-    // MARK: - Treino Methods
+    // MARK: - Treino Methods (Embedded)
+    
     func saveTreino(_ treino: Treino) async throws {
-        guard !treino.userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
-        }
+        guard !treino.userUID.isEmpty else { throw NSError(domain: "App", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID vazio"]) }
         
-        guard !treino.nome.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Nome do treino não pode ser vazio"])
-        }
-        
-        print("🟡 Salvando treino: \(treino.nome) para usuário: \(treino.userUID)")
-        
-        let treinoData: [String: Any] = [
-            "id": treino.id.uuidString,
+        let data: [String: Any] = [
+            "id": treino.id,
             "nome": treino.nome,
             "data": Timestamp(date: treino.data),
             "userUID": treino.userUID,
             "createdAt": Timestamp(date: Date()),
-            "updatedAt": Timestamp(date: Date())
+            "updatedAt": Timestamp(date: Date()),
+            "exercicios": treino.exercicios.map { $0.toDictionary() }
         ]
         
-        do {
-            try await db.collection("treinos").document(treino.id.uuidString).setData(treinoData)
-            print("✅ Treino salvo com sucesso: \(treino.nome)")
-            
-            // Salvar exercícios
-            for (index, exercicio) in treino.exercicios.enumerated() {
-                do {
-                    try await saveExercicio(exercicio, treinoID: treino.id.uuidString)
-                    print("✅ Exercício \(index + 1) salvo: \(exercicio.nome)")
-                } catch {
-                    print("🔴 Erro ao salvar exercício \(index + 1): \(error)")
-                    // Continuar salvando outros exercícios
-                }
-            }
-            
-        } catch {
-            print("🔴 Erro ao salvar treino no Firestore: \(error)")
-            throw error
-        }
+        try await db.collection("treinos").document(treino.id).setData(data)
+        print("✅ Treino salvo (Embedded): \(treino.nome)")
     }
     
-    private func saveExercicio(_ exercicio: Exercicio, treinoID: String) async throws {
-            let exercicioData: [String: Any] = [
-                "id": exercicio.id.uuidString,
-                "nome": exercicio.nome,
-                "series": exercicio.series,
-                "repeticoes": exercicio.repeticoes,
-                "tempoDescanso": exercicio.tempoDescanso,
-                "observacoes": exercicio.observacoes,
-                "peso": exercicio.peso,
-                "treinoID": treinoID,
-                "createdAt": Timestamp(date: Date())
-            ]
-            
-            try await db.collection("exercicios").document(exercicio.id.uuidString).setData(exercicioData)
-        }
+    func updateTreino(_ treino: Treino) async throws {
+        guard !treino.userUID.isEmpty else { return }
+        
+        let data: [String: Any] = [
+            "id": treino.id,
+            "nome": treino.nome,
+            "data": Timestamp(date: treino.data),
+            "userUID": treino.userUID,
+            "updatedAt": Timestamp(date: Date()),
+            "exercicios": treino.exercicios.map { $0.toDictionary() }
+        ]
+        
+        try await db.collection("treinos").document(treino.id).setData(data, merge: true)
+        print("✅ Treino atualizado: \(treino.nome)")
+    }
     
     func fetchTreinos(userUID: String) async throws -> [Treino] {
-        guard !userUID.isEmpty else {
-            print("🔴🔴🔴 ERRO CRÍTICO: fetchTreinos chamado com UserUID vazio")
-            // Log mais detalhado para identificar a origem
-            print("🔴 Call Stack:")
-            for symbol in Thread.callStackSymbols.prefix(5) {
-                print("   \(symbol)")
-            }
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
-        }
+        guard !userUID.isEmpty else { return [] }
         
-        print("🟢 fetchTreinos iniciado para UserUID: \(userUID)")
-        
-        do {
-            let snapshot = try await db.collection("treinos")
-                .whereField("userUID", isEqualTo: userUID)
-                .order(by: "data", descending: true)
-                .getDocuments()
-            
-            var treinos: [Treino] = []
-            
-            for document in snapshot.documents {
-                let data = document.data()
-                if let treino = await parseTreino(from: data, documentID: document.documentID) {
-                    treinos.append(treino)
-                }
-            }
-            
-            print("✅ fetchTreinos concluído: \(treinos.count) treinos")
-            return treinos
-            
-        } catch {
-            print("🔴 Erro no fetchTreinos: \(error)")
-            throw error
-        }
-    }
-    
-    private func parseTreino(from data: [String: Any], documentID: String) async -> Treino? {
-        guard let idString = data["id"] as? String,
-              let uuid = UUID(uuidString: idString),
-              let nome = data["nome"] as? String,
-              let timestamp = data["data"] as? Timestamp,
-              let userUID = data["userUID"] as? String else {
-            return nil
-        }
-        
-        let data = timestamp.dateValue()
-        let treino = Treino(id: uuid, nome: nome, data: data, exercicios: [], userUID: userUID)
-        
-        // Carregar exercícios deste treino
-        do {
-            let exercicios = try await fetchExercicios(treinoID: documentID)
-            treino.exercicios = exercicios
-        } catch {
-            print("⚠️ Erro ao carregar exercícios do treino \(nome): \(error)")
-        }
-        
-        return treino
-    }
-    
-    private func fetchExercicios(treinoID: String) async throws -> [Exercicio] {
-        let snapshot = try await db.collection("exercicios")
-            .whereField("treinoID", isEqualTo: treinoID)
+        let snapshot = try await db.collection("treinos")
+            .whereField("userUID", isEqualTo: userUID)
+            .order(by: "data", descending: true)
             .getDocuments()
         
-        var exercicios: [Exercicio] = []
-        
-        for document in snapshot.documents {
-            let data = document.data()
-            if let exercicio = parseExercicio(from: data) {
-                exercicios.append(exercicio)
-            }
-        }
-        
-        return exercicios
-    }
-    
-    private func parseExercicio(from data: [String: Any]) -> Exercicio? {
-        guard let idString = data["id"] as? String,
-              let uuid = UUID(uuidString: idString),
-              let nome = data["nome"] as? String else {
-            return nil
-        }
-        
-        let series = data["series"] as? Int ?? 3
-        let repeticoes = data["repeticoes"] as? String ?? "10"
-        let tempoDescanso = data["tempoDescanso"] as? Int ?? 60
-        let observacoes = data["observacoes"] as? String ?? ""
-        let peso = data["peso"] as? Int ?? 10
-        
-        return Exercicio(
-            id: uuid,
-            nome: nome,
-            series: series,
-            repeticoes: repeticoes,
-            tempoDescanso: tempoDescanso,
-            observacoes: observacoes,
-            peso: peso
-        )
+        return snapshot.documents.compactMap { parseTreino(from: $0.data(), documentID: $0.documentID) }
     }
     
     func deleteTreino(_ treino: Treino) async throws {
-        do {
-            // Primeiro deletar todos os exercícios do treino
-            let exerciciosSnapshot = try await db.collection("exercicios")
-                .whereField("treinoID", isEqualTo: treino.id.uuidString)
-                .getDocuments()
-            
-            for document in exerciciosSnapshot.documents {
-                try await document.reference.delete()
-            }
-            
-            // Depois deletar o treino
-            try await db.collection("treinos").document(treino.id.uuidString).delete()
-            print("✅ Treino deletado: \(treino.nome)")
-            
-        } catch {
-            print("🔴 Erro ao deletar treino: \(error)")
-            throw error
-        }
+        try await db.collection("treinos").document(treino.id).delete()
+        print("✅ Treino deletado: \(treino.nome)")
     }
     
-    // MARK: - Listener Methods
+    // MARK: - Listeners
+    
     func startTreinosListener(userUID: String, completion: @escaping ([Treino]) -> Void) {
         guard !userUID.isEmpty else { return }
         
+        stopListeners()
+        
+        print("🟡 Iniciando listener de treinos para: \(userUID)")
         let listener = db.collection("treinos")
             .whereField("userUID", isEqualTo: userUID)
             .order(by: "data", descending: true)
-            .addSnapshotListener { querySnapshot, error in
+            .addSnapshotListener { [weak self] querySnapshot, error in
+                guard let self = self else { return }
+                
                 if let error = error {
-                    print("🔴 Erro no listener de treinos: \(error)")
+                    print("🔴 Erro no listener: \(error)")
                     return
                 }
                 
-                Task {
-                    var treinos: [Treino] = []
-                    
-                    if let documents = querySnapshot?.documents {
-                        for document in documents {
-                            let data = document.data()
-                            if let treino = await self.parseTreino(from: data, documentID: document.documentID) {
-                                treinos.append(treino)
-                            }
-                        }
-                    }
-                    
-                    completion(treinos)
+                guard let documents = querySnapshot?.documents else {
+                    completion([])
+                    return
                 }
+                
+                let treinos = documents.compactMap { self.parseTreino(from: $0.data(), documentID: $0.documentID) }
+                completion(treinos)
             }
         
         listeners.append(listener)
@@ -268,192 +121,133 @@ class FirestoreService {
     func stopListeners() {
         listeners.forEach { $0.remove() }
         listeners.removeAll()
-        print("🟡 Listeners do Firestore parados")
+        print("🟡 Listeners parados")
     }
-}
-
-// Services/FirestoreService.swift - ADIÇÃO DO MÉTODO updateTreino
-extension FirestoreService {
     
-    func updateTreino(_ treino: Treino) async throws {
-        guard !treino.userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
-        }
-        
-        guard !treino.nome.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Nome do treino não pode ser vazio"])
-        }
-        
-        print("🟡 Atualizando treino: \(treino.nome) para usuário: \(treino.userUID)")
-        
-        let treinoData: [String: Any] = [
-            "id": treino.id.uuidString,
-            "nome": treino.nome,
-            "data": Timestamp(date: treino.data),
-            "userUID": treino.userUID,
-            "updatedAt": Timestamp(date: Date())
+    // MARK: - Profissional (NOVO)
+    
+    func enviarSolicitacaoProfissional(userUID: String, nomeCompleto: String, cref: String, especialidade: String, biografia: String) async throws {
+        let data: [String: Any] = [
+            "userUID": userUID,
+            "nomeCompleto": nomeCompleto,
+            "cref": cref,
+            "especialidade": especialidade,
+            "biografia": biografia,
+            "status": "pendente",
+            "dataSolicitacao": Timestamp(date: Date())
         ]
         
-        do {
-            // Atualizar dados do treino
-            try await db.collection("treinos").document(treino.id.uuidString).setData(treinoData, merge: true)
-            print("✅ Treino atualizado com sucesso: \(treino.nome)")
-            
-            // Primeiro deletar exercícios antigos
-            let exerciciosSnapshot = try await db.collection("exercicios")
-                .whereField("treinoID", isEqualTo: treino.id.uuidString)
-                .getDocuments()
-            
-            for document in exerciciosSnapshot.documents {
-                try await document.reference.delete()
-            }
-            
-            // Salvar novos exercícios
-            for (index, exercicio) in treino.exercicios.enumerated() {
-                do {
-                    try await saveExercicio(exercicio, treinoID: treino.id.uuidString)
-                    print("✅ Exercício \(index + 1) salvo: \(exercicio.nome)")
-                } catch {
-                    print("🔴 Erro ao salvar exercício \(index + 1): \(error)")
-                    // Continuar salvando outros exercícios
-                }
-            }
-            
-        } catch {
-            print("🔴 Erro ao atualizar treino no Firestore: \(error)")
-            throw error
-        }
+        try await db.collection("solicitacoes_profissionais").document(userUID).setData(data)
     }
-}
-
-// Services/FirestoreService.swift - ADIÇÕES PARA FAVORITOS
-extension FirestoreService {
     
-    // MARK: - Favoritos Methods
-    func adicionarFavorito(treinoID: String, userUID: String) async throws {
-        guard !treinoID.isEmpty, !userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "IDs não podem ser vazios"])
+    // MARK: - Helpers
+    
+    private func parseTreino(from data: [String: Any], documentID: String) -> Treino? {
+        guard let idString = data["id"] as? String,
+              let nome = data["nome"] as? String,
+              let timestamp = data["data"] as? Timestamp,
+              let userUID = data["userUID"] as? String else {
+            return nil
         }
         
-        // Verificar limite de 3 favoritos
+        let exerciciosData = data["exercicios"] as? [[String: Any]] ?? []
+        let exercicios = exerciciosData.compactMap { Exercicio(dictionary: $0) }
+        
+        return Treino(id: idString, nome: nome, data: timestamp.dateValue(), exercicios: exercicios, userUID: userUID)
+    }
+    
+    // MARK: - Favoritos
+    
+    func adicionarFavorito(treinoID: String, userUID: String) async throws {
         let favoritosAtuais = try await fetchFavoritos(userUID: userUID)
         if favoritosAtuais.count >= 3 {
-            throw NSError(domain: "FirestoreService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Limite de 3 treinos favoritos atingido"])
+            throw NSError(domain: "App", code: -2, userInfo: [NSLocalizedDescriptionKey: "Limite de favoritos atingido"])
         }
-        
-        // Verificar se já é favorito
-        if favoritosAtuais.contains(where: { $0.treinoID == treinoID }) {
-            throw NSError(domain: "FirestoreService", code: -3, userInfo: [NSLocalizedDescriptionKey: "Treino já está nos favoritos"])
-        }
+        if favoritosAtuais.contains(where: { $0.treinoID == treinoID }) { return }
         
         let favorito = Favorito(treinoID: treinoID, userUID: userUID)
-        
-        let favoritoData: [String: Any] = [
+        let data: [String: Any] = [
             "id": favorito.id,
             "treinoID": favorito.treinoID,
             "userUID": favorito.userUID,
             "dataAdicionado": Timestamp(date: favorito.dataAdicionado)
         ]
-        
-        try await db.collection("favoritos").document(favorito.id).setData(favoritoData)
-        print("✅ Favorito adicionado: \(treinoID)")
+        try await db.collection("favoritos").document(favorito.id).setData(data)
     }
     
     func removerFavorito(treinoID: String, userUID: String) async throws {
-        guard !treinoID.isEmpty, !userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "IDs não podem ser vazios"])
-        }
-        
         let snapshot = try await db.collection("favoritos")
             .whereField("treinoID", isEqualTo: treinoID)
             .whereField("userUID", isEqualTo: userUID)
             .getDocuments()
         
-        for document in snapshot.documents {
-            try await document.reference.delete()
+        for doc in snapshot.documents {
+            try await doc.reference.delete()
         }
-        
-        print("✅ Favorito removido: \(treinoID)")
     }
     
     func fetchFavoritos(userUID: String) async throws -> [Favorito] {
-        guard !userUID.isEmpty else {
-            throw NSError(domain: "FirestoreService", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID não pode ser vazio"])
-        }
-        
+        guard !userUID.isEmpty else { return [] }
         let snapshot = try await db.collection("favoritos")
             .whereField("userUID", isEqualTo: userUID)
-            .order(by: "dataAdicionado", descending: true)
             .getDocuments()
         
-        var favoritos: [Favorito] = []
-        
-        for document in snapshot.documents {
-            let data = document.data()
-            if let favorito = parseFavorito(from: data) {
-                favoritos.append(favorito)
-            }
+        return snapshot.documents.compactMap { doc in
+            let data = doc.data()
+            guard let tID = data["treinoID"] as? String, let uID = data["userUID"] as? String else { return nil }
+            let id = data["id"] as? String ?? doc.documentID
+            return Favorito(id: id, treinoID: tID, userUID: uID)
         }
-        
-        return favoritos
     }
     
     func fetchTreinosFavoritos(userUID: String) async throws -> [Treino] {
         let favoritos = try await fetchFavoritos(userUID: userUID)
-        var treinosFavoritos: [Treino] = []
+        var treinos: [Treino] = []
         
-        for favorito in favoritos {
-            // Buscar o treino completo pelo ID
-            let document = try await db.collection("treinos").document(favorito.treinoID).getDocument()
-            if let data = document.data(), let treino = await parseTreino(from: data, documentID: favorito.treinoID) {
-                treinosFavoritos.append(treino)
+        for fav in favoritos {
+            let doc = try await db.collection("treinos").document(fav.treinoID).getDocument()
+            if let data = doc.data(), let treino = parseTreino(from: data, documentID: fav.treinoID) {
+                treinos.append(treino)
             }
         }
-        
-        return treinosFavoritos
+        return treinos
+    }
+}
+
+extension Exercicio {
+    func toDictionary() -> [String: Any] {
+        return [
+            "id": id,
+            "nome": nome,
+            "series": series,
+            "repeticoes": repeticoes,
+            "peso": peso,
+            "tempoDescanso": tempoDescanso,
+            "observacoes": observacoes
+        ]
     }
     
-    func isTreinoFavorito(treinoID: String, userUID: String) async throws -> Bool {
-        let favoritos = try await fetchFavoritos(userUID: userUID)
-        return favoritos.contains(where: { $0.treinoID == treinoID })
-    }
-    
-    // ADICIONAR: Método para limpar favoritos órfãos
-    func limparFavoritosOrfaos(userUID: String) async throws {
-        guard !userUID.isEmpty else { return }
+    init?(dictionary: [String: Any]) {
+        guard let idStr = dictionary["id"] as? String,
+              let nome = dictionary["nome"] as? String else { return nil }
         
-        print("🟡 Verificando favoritos órfãos para UserUID: \(userUID)")
-        
-        let favoritos = try await fetchFavoritos(userUID: userUID)
-        var favoritosParaRemover: [String] = []
-        
-        for favorito in favoritos {
-            let treinoDocument = try await db.collection("treinos").document(favorito.treinoID).getDocument()
-            if !treinoDocument.exists {
-                print("🟡 Encontrado favorito órfão: \(favorito.treinoID)")
-                favoritosParaRemover.append(favorito.treinoID)
-            }
-        }
-        
-        // Remover favoritos órfãos
-        for treinoID in favoritosParaRemover {
-            try await removerFavorito(treinoID: treinoID, userUID: userUID)
-            print("✅ Favorito órfão removido: \(treinoID)")
-        }
-        
-        print("✅ Limpeza de favoritos órfãos concluída")
-    }
-    
-    private func parseFavorito(from data: [String: Any]) -> Favorito? {
-        guard let id = data["id"] as? String,
-              let treinoID = data["treinoID"] as? String,
-              let userUID = data["userUID"] as? String,
-              let timestamp = data["dataAdicionado"] as? Timestamp else {
-            return nil
-        }
-        return Favorito(
-            treinoID: treinoID,
-            userUID: userUID
+        self.init(
+            id: idStr,
+            nome: nome,
+            series: dictionary["series"] as? Int ?? 3,
+            repeticoes: dictionary["repeticoes"] as? String ?? "10",
+            tempoDescanso: dictionary["tempoDescanso"] as? Int ?? 60,
+            observacoes: dictionary["observacoes"] as? String ?? "",
+            peso: dictionary["peso"] as? Int ?? 0
         )
+    }
+}
+
+extension Favorito {
+    init(id: String = UUID().uuidString, treinoID: String, userUID: String) {
+        self.id = id
+        self.treinoID = treinoID
+        self.userUID = userUID
+        self.dataAdicionado = Date()
     }
 }

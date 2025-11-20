@@ -1,4 +1,4 @@
-// Views/ContentView.swift - VERSÃO ATUALIZADA COM ONBOARDING
+// Views/ContentView.swift - VERSÃO MINIMALISTA
 import SwiftUI
 import FirebaseCore
 
@@ -8,90 +8,54 @@ struct ContentView: View {
     @StateObject private var treinoManager = TreinoManager()
     @State private var isAppReady = false
     @State private var showLoadingState = true
-    @State private var initializationStep = "Preparando sua experiência..."
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
     var body: some View {
         ZStack {
             if showLoadingState {
-                // Tela de carregamento com shimmer effect
-                ZStack {
-                    Color(.systemBackground)
-                        .ignoresSafeArea()
+                // Tela de carregamento minimalista
+                VStack(spacing: 20) {
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
                     
-                    VStack(spacing: 30) {
-                        // Logo/Ícone do app com shimmer
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.1))
-                                .frame(width: 100, height: 100)
-                            
-                            Image(systemName: "figure.strengthtraining.traditional")
-                                .font(.system(size: 40))
-                                .foregroundColor(.blue)
-                        }
-                        .overlay(
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.clear, .blue.opacity(0.3), .clear],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .mask(Circle())
-                        )
-                        
-                        // Texto com shimmer
-                        VStack(spacing: 12) {
-                            Text("FitTrack")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primary)
-                            
-                            Text(initializationStep)
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                            
-                            ProgressView()
-                                .scaleEffect(1.2)
-                                .tint(.blue)
-                                .padding(.top, 8)
-                        }
-                    }
-                    .padding()
+                    Text("Trainar")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
                 }
                 .transition(.opacity)
             } else if isAppReady {
-                // App pronto - conteúdo principal
-                if !hasSeenOnboarding {
-                    // Mostrar onboarding apenas na primeira vez
-                    NavigationStack {
-                        OnboardingView()
-                            .environmentObject(authViewModel)
-                    }
-                    .transition(.opacity)
-                } else if authViewModel.isAuthenticated && authViewModel.hasValidUser {
+                // Lógica principal da aplicação
+                if authViewModel.isAuthenticated {
                     PaginaInicialView()
                         .environmentObject(authViewModel)
                         .environmentObject(treinoManager)
                         .environmentObject(errorHandler)
+                        .transition(.opacity)
+                        .onAppear {
+                            if !hasSeenOnboarding {
+                                hasSeenOnboarding = true
+                            }
+                        }
+                } else if !hasSeenOnboarding {
+                    OnboardingView()
+                        .environmentObject(authViewModel)
+                        .transition(.opacity)
                 } else {
                     LoginView()
                         .environmentObject(authViewModel)
                         .environmentObject(errorHandler)
+                        .transition(.opacity)
                 }
             }
         }
         .animation(.easeInOut(duration: 0.5), value: showLoadingState)
-        .animation(.easeInOut(duration: 0.5), value: authViewModel.isAuthenticated)
         .animation(.easeInOut(duration: 0.3), value: isAppReady)
+        .animation(.easeInOut(duration: 0.3), value: authViewModel.isAuthenticated)
         .animation(.easeInOut(duration: 0.3), value: hasSeenOnboarding)
         .alert("Erro", isPresented: $errorHandler.showErrorAlert) {
-            Button("OK") {
-                errorHandler.clearError()
-            }
+            Button("OK") { errorHandler.clearError() }
         } message: {
             if let error = errorHandler.currentError {
                 Text(error.errorDescription ?? "Erro desconhecido")
@@ -101,45 +65,48 @@ struct ContentView: View {
             initializeApp()
         }
         .onChange(of: authViewModel.currentUserUID) { newUID in
-            if let uid = newUID {
+            if let uid = newUID, !uid.isEmpty {
                 treinoManager.setup(userUID: uid)
+            }
+        }
+        .onChange(of: authViewModel.isAuthenticated) { isAuthenticated in
+            if isAuthenticated {
+                if !hasSeenOnboarding {
+                    hasSeenOnboarding = true
+                }
+                if let uid = authViewModel.currentUserUID {
+                    treinoManager.setup(userUID: uid)
+                }
             }
         }
     }
     
     private func initializeApp() {
-        print("🟡 Iniciando inicialização do app...")
+        print("🟡 Iniciando app...")
         
-        // Simular passos de inicialização
-        let steps = [
-            ("Verificando conexão...", 1.0),
-            ("Carregando seus dados...", 2.0),
-            ("Quase pronto...", 3.0)
-        ]
-        
-        for (index, (step, delay)) in steps.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                withAnimation {
-                    initializationStep = step
-                }
-                
-                if index == steps.count - 1 {
-                    completeInitialization()
-                }
-            }
+        // Verificação rápida se usuário já está autenticado
+        if authViewModel.isAuthenticated && !hasSeenOnboarding {
+            hasSeenOnboarding = true
         }
+        
+        // Chama a completeInitialization imediatamente após carregar
+        completeInitialization()
     }
     
     private func completeInitialization() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                showLoadingState = false
-                isAppReady = true
-            }
-            
-            if let uid = authViewModel.currentUserUID {
-                treinoManager.setup(userUID: uid)
-            }
+        // Transição imediata para o conteúdo principal
+        withAnimation(.easeInOut(duration: 0.5)) {
+            showLoadingState = false
+            isAppReady = true
+        }
+        
+        print("🟢 App inicializado:")
+        print("   - Autenticado: \(authViewModel.isAuthenticated)")
+        print("   - UserUID: \(authViewModel.currentUserUID ?? "nil")")
+        
+        // Configurar treinoManager se usuário estiver autenticado
+        if authViewModel.isAuthenticated, let uid = authViewModel.currentUserUID, !uid.isEmpty {
+            treinoManager.setup(userUID: uid)
         }
     }
 }

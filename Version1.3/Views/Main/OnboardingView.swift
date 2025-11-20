@@ -72,27 +72,30 @@ struct OnboardingView: View {
                     .disabled(viewModel.isLoading)
                     
                     // Login com Email
-                    NavigationLink {
-                        LoginView()
-                            .environmentObject(authViewModel)
-                    } label: {
-                        HStack {
-                            Image(systemName: "envelope")
-                                .font(.title3)
-                            
-                            Text("Continuar com e-mail")
-                                .fontWeight(.semibold)
+
+                        Button{
+                            Task {
+                                LoginView()
+                            }
+                          
+                        } label: {
+                            HStack {
+                                Image(systemName: "envelope")
+                                    .font(.title3)
+                                
+                                Text("Continuar com e-mail")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue.opacity(0.8))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue.opacity(0.8))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                    }
                     
                     if !viewModel.errorMessage.isEmpty {
                         Text(viewModel.errorMessage)
