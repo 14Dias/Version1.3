@@ -5,15 +5,22 @@ struct Treino: Identifiable, Codable, Hashable {
     var nome: String
     var data: Date
     var exercicios: [Exercicio]
-    var userUID: String
-    var isFavorito: Bool = false // Adicionado para facilitar UI local
+    var userUID: String      // ID do dono do treino (o Aluno que vai treinar)
+    var professionalUID: String? // NOVO: ID do profissional que criou (opcional)
+    var isFavorito: Bool = false
     
-    // Init padrão
-    init(id: String = UUID().uuidString, nome: String, data: Date = Date(), exercicios: [Exercicio] = [], userUID: String) {
+    // Init atualizado
+    init(id: String = UUID().uuidString,
+         nome: String,
+         data: Date = Date(),
+         exercicios: [Exercicio] = [],
+         userUID: String,
+         professionalUID: String? = nil) { // Parâmetro opcional
         self.id = id
         self.nome = nome
         self.data = data
         self.exercicios = exercicios
         self.userUID = userUID
+        self.professionalUID = professionalUID
     }
 }

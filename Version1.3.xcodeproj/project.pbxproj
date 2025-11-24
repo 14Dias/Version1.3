@@ -46,6 +46,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ViewModels/DeleteAccountViewModel.swift,
+				ViewModels/ProfessionalViewModel.swift,
 			);
 			target = 81F030A52EC16D00009A82CD /* Version1.3 */;
 		};

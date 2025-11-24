@@ -7,6 +7,18 @@ class FirestoreService {
     private let db = Firestore.firestore()
     private var listeners: [ListenerRegistration] = []
     
+    func fetchConteudos() async throws -> [Conteudo] {
+            // Busca na coleção "conteudos", filtra apenas os ativos e ordena pela ordem
+            let snapshot = try await db.collection("conteudos")
+                .whereField("ativo", isEqualTo: true)
+                .order(by: "ordem")
+                .getDocuments()
+            
+            return snapshot.documents.compactMap { document in
+                try? document.data(as: Conteudo.self)
+            }
+        }
+    
     // MARK: - User Methods
     func saveUserData(user: User) async throws {
         guard !user.userUID.isEmpty else { return }
@@ -24,36 +36,51 @@ class FirestoreService {
     }
     
     func fetchUserData(userUID: String) async throws -> User? {
-        guard !userUID.isEmpty else { return nil }
-        let document = try await db.collection("users").document(userUID).getDocument()
-        
-        guard let data = document.data(),
-              let username = data["username"] as? String,
-              let email = data["email"] as? String else {
-            return nil
+            guard !userUID.isEmpty else { return nil }
+            let document = try await db.collection("users").document(userUID).getDocument()
+            
+            guard let data = document.data(),
+                  let username = data["username"] as? String,
+                  let email = data["email"] as? String else {
+                return nil
+            }
+            
+            // Ler o campo do banco (se não existir, assume false)
+            let isHealthProfessional = data["isHealthProfessional"] as? Bool ?? false
+            
+            return User(
+                username: username,
+                email: email,
+                userUID: userUID,
+                isHealthProfessional: isHealthProfessional
+            )
         }
-        
-        return User(username: username, email: email, userUID: userUID)
-    }
     
     // MARK: - Treino Methods (Embedded)
     
     func saveTreino(_ treino: Treino) async throws {
-        guard !treino.userUID.isEmpty else { throw NSError(domain: "App", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID vazio"]) }
-        
-        let data: [String: Any] = [
-            "id": treino.id,
-            "nome": treino.nome,
-            "data": Timestamp(date: treino.data),
-            "userUID": treino.userUID,
-            "createdAt": Timestamp(date: Date()),
-            "updatedAt": Timestamp(date: Date()),
-            "exercicios": treino.exercicios.map { $0.toDictionary() }
-        ]
-        
-        try await db.collection("treinos").document(treino.id).setData(data)
-        print("✅ Treino salvo (Embedded): \(treino.nome)")
-    }
+            guard !treino.userUID.isEmpty else {
+                throw NSError(domain: "App", code: -1, userInfo: [NSLocalizedDescriptionKey: "UserUID vazio"])
+            }
+            
+            var data: [String: Any] = [
+                "id": treino.id,
+                "nome": treino.nome,
+                "data": Timestamp(date: treino.data),
+                "userUID": treino.userUID, // Aqui vai o ID do ALUNO
+                "createdAt": Timestamp(date: Date()),
+                "updatedAt": Timestamp(date: Date()),
+                "exercicios": treino.exercicios.map { $0.toDictionary() }
+            ]
+            
+            // Se houver um profissional vinculado, salva o ID dele também
+            if let profID = treino.professionalUID {
+                data["professionalUID"] = profID
+            }
+            
+            try await db.collection("treinos").document(treino.id).setData(data)
+            print("✅ Treino salvo: \(treino.nome) para o aluno: \(treino.userUID)")
+        }
     
     func updateTreino(_ treino: Treino) async throws {
         guard !treino.userUID.isEmpty else { return }
@@ -127,34 +154,50 @@ class FirestoreService {
     // MARK: - Profissional (NOVO)
     
     func enviarSolicitacaoProfissional(userUID: String, nomeCompleto: String, cref: String, especialidade: String, biografia: String) async throws {
-        let data: [String: Any] = [
-            "userUID": userUID,
-            "nomeCompleto": nomeCompleto,
-            "cref": cref,
-            "especialidade": especialidade,
-            "biografia": biografia,
-            "status": "pendente",
-            "dataSolicitacao": Timestamp(date: Date())
-        ]
-        
-        try await db.collection("solicitacoes_profissionais").document(userUID).setData(data)
-    }
+            let data: [String: Any] = [
+                "userUID": userUID,
+                "nomeCompleto": nomeCompleto,
+                "cref": cref,
+                "especialidade": especialidade,
+                "biografia": biografia,
+                "status": "pendente", // ou "aprovado" se quiser aprovar direto
+                "dataSolicitacao": Timestamp(date: Date())
+            ]
+            
+            // 1. Salva a solicitação
+            try await db.collection("solicitacoes_profissionais").document(userUID).setData(data)
+            
+            // 2. ATUALIZA O USUÁRIO PARA PROFISSIONAL IMEDIATAMENTE (Para teste)
+            // Em um app real, isso seria feito por um admin painel
+            try await db.collection("users").document(userUID).updateData([
+                "isHealthProfessional": true
+            ])
+        }
     
     // MARK: - Helpers
     
     private func parseTreino(from data: [String: Any], documentID: String) -> Treino? {
-        guard let idString = data["id"] as? String,
-              let nome = data["nome"] as? String,
-              let timestamp = data["data"] as? Timestamp,
-              let userUID = data["userUID"] as? String else {
-            return nil
+            guard let idString = data["id"] as? String,
+                  let nome = data["nome"] as? String,
+                  let timestamp = data["data"] as? Timestamp,
+                  let userUID = data["userUID"] as? String else {
+                return nil
+            }
+            
+            let professionalUID = data["professionalUID"] as? String // Leitura opcional
+            
+            let exerciciosData = data["exercicios"] as? [[String: Any]] ?? []
+            let exercicios = exerciciosData.compactMap { Exercicio(dictionary: $0) }
+            
+            return Treino(
+                id: idString,
+                nome: nome,
+                data: timestamp.dateValue(),
+                exercicios: exercicios,
+                userUID: userUID,
+                professionalUID: professionalUID // Passa para o init
+            )
         }
-        
-        let exerciciosData = data["exercicios"] as? [[String: Any]] ?? []
-        let exercicios = exerciciosData.compactMap { Exercicio(dictionary: $0) }
-        
-        return Treino(id: idString, nome: nome, data: timestamp.dateValue(), exercicios: exercicios, userUID: userUID)
-    }
     
     // MARK: - Favoritos
     
@@ -199,19 +242,32 @@ class FirestoreService {
             return Favorito(id: id, treinoID: tID, userUID: uID)
         }
     }
-    
-    func fetchTreinosFavoritos(userUID: String) async throws -> [Treino] {
-        let favoritos = try await fetchFavoritos(userUID: userUID)
-        var treinos: [Treino] = []
-        
-        for fav in favoritos {
-            let doc = try await db.collection("treinos").document(fav.treinoID).getDocument()
-            if let data = doc.data(), let treino = parseTreino(from: data, documentID: fav.treinoID) {
-                treinos.append(treino)
+        func fetchTreinosFavoritos(userUID: String) async throws -> [Treino] {
+            // 1. Busca a lista de favoritos (IDs)
+            let favoritos = try await fetchFavoritos(userUID: userUID)
+            var treinos: [Treino] = []
+            
+            // 2. Tenta buscar cada treino individualmente
+            for fav in favoritos {
+                do {
+                    let doc = try await db.collection("treinos").document(fav.treinoID).getDocument()
+                    
+                    // Só adiciona se o documento existir E puder ser convertido
+                    if let data = doc.data(),
+                       let treino = parseTreino(from: data, documentID: fav.treinoID) {
+                        treinos.append(treino)
+                    } else {
+                        print("⚠️ Favorito encontrado mas documento do treino não existe ou é inválido: \(fav.treinoID)")
+                        // Opcional: Aqui você poderia deletar o favorito órfão automaticamente
+                        // try? await removerFavorito(treinoID: fav.treinoID, userUID: userUID)
+                    }
+                } catch {
+                    // Se der erro de permissão ou rede num treino específico, apenas loga e continua
+                    print("⚠️ Erro ao carregar treino favorito específico (\(fav.treinoID)): \(error.localizedDescription)")
+                }
             }
+            return treinos
         }
-        return treinos
-    }
 }
 
 extension Exercicio {

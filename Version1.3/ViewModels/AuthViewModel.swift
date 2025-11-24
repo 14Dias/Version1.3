@@ -27,7 +27,7 @@ class AuthViewModel: ObservableObject {
     
     init() {
         setupAuthListener()
-        checkCurrentUser()
+        // checkCurrentUser() -> Removido pois o listener já dispara ao iniciar
     }
     
     deinit {
@@ -39,24 +39,42 @@ class AuthViewModel: ObservableObject {
     // MARK: - Auth State Management
     private func setupAuthListener() {
         authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, firebaseUser in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                
                 if let firebaseUser = firebaseUser {
-                    self?.user = self?.authService.getCurrentAppUser()
-                    self?.isAuthenticated = true
-                    self?.errorMessage = ""
-                    print("🟢 AuthListener: Usuário autenticado - \(firebaseUser.uid)")
+                    // MUDANÇA PRINCIPAL:
+                    // Em vez de apenas pegar os dados do Auth, buscamos no Firestore
+                    // para garantir que temos o 'isHealthProfessional'
+                    await self.fetchFirestoreUser(uid: firebaseUser.uid)
                 } else {
-                    self?.user = nil
-                    self?.isAuthenticated = false
+                    self.user = nil
+                    self.isAuthenticated = false
+                    self.errorMessage = ""
                     print("🟢 AuthListener: Usuário não autenticado")
                 }
             }
         }
     }
     
-    private func checkCurrentUser() {
-        if let currentUser = authService.getCurrentAppUser() {
-            self.user = currentUser
+    // NOVA FUNÇÃO: Busca os dados completos no Firestore
+    func fetchFirestoreUser(uid: String) async {
+        do {
+            // Tenta buscar o documento completo do usuário
+            if let userCompleto = try await firestoreService.fetchUserData(userUID: uid) {
+                self.user = userCompleto
+                self.isAuthenticated = true
+                print("🟢 AuthViewModel: Dados carregados do Firestore (Profissional: \(userCompleto.isHealthProfessional))")
+            } else {
+                // Fallback: Se não achar no banco, usa os dados básicos do Auth
+                self.user = authService.getCurrentAppUser()
+                self.isAuthenticated = true
+                print("⚠️ AuthViewModel: Usuário não encontrado no Firestore, usando dados básicos.")
+            }
+        } catch {
+            print("🔴 Erro ao buscar no Firestore: \(error.localizedDescription)")
+            // Fallback em caso de erro
+            self.user = authService.getCurrentAppUser()
             self.isAuthenticated = true
         }
     }
@@ -80,6 +98,7 @@ class AuthViewModel: ObservableObject {
         
         do {
             try await authService.signUp(username: username, email: email, password: password)
+            // O Listener vai pegar a mudança automaticamente
             isLoading = false
             return true
         } catch {
@@ -95,6 +114,7 @@ class AuthViewModel: ObservableObject {
         
         do {
             try await authService.signIn(email: email, password: password)
+            // O Listener cuida do resto
             isLoading = false
             return true
         } catch {
@@ -111,6 +131,7 @@ class AuthViewModel: ObservableObject {
         do {
             try authService.signOut()
             isLoading = false
+            // Listener atualizará o estado para nil
         } catch {
             errorMessage = handleAuthError(error)
             isLoading = false
@@ -132,7 +153,7 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Google Sign In (NOVO)
+    // MARK: - Google Sign In
     func signInWithGoogle() async -> Bool {
         isLoading = true
         errorMessage = ""
@@ -190,9 +211,8 @@ class AuthViewModel: ObservableObject {
         
         do {
             try await authService.updateUserProfile(username: username)
-            if let currentUser = authService.getCurrentAppUser() {
-                self.user = currentUser
-            }
+            // Após atualizar, recarregamos os dados para manter tudo sincronizado
+            await refreshUserData()
             isLoading = false
             return true
         } catch {
@@ -228,22 +248,20 @@ class AuthViewModel: ObservableObject {
         try await currentUser.delete()
     }
     
-    func updateUserProfileFromService() async {
-        if let currentUser = authService.getCurrentAppUser() {
-            await MainActor.run {
-                self.user = currentUser
-            }
+    // Método auxiliar para forçar atualização (usado na PerfilView ou após edições)
+    func refreshUserData() async {
+        if let uid = currentUserUID {
+            await fetchFirestoreUser(uid: uid)
         }
     }
     
+    // Substitui o método antigo e usa a nova lógica
+    func updateUserProfileFromService() async {
+        await refreshUserData()
+    }
+    
     func getCurrentUserUID() -> String {
-        guard let uid = currentUserUID, !uid.isEmpty else {
-            if let firebaseUser = Auth.auth().currentUser {
-                return firebaseUser.uid
-            }
-            return ""
-        }
-        return uid
+        return currentUserUID ?? ""
     }
     
     // MARK: - Error Handling

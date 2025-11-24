@@ -46,13 +46,28 @@ struct PerfilView: View {
                     }
                     
                     Section("Profissional") {
-                        NavigationLink {
-                            SolicitarProfissionalView()
-                        } label: {
-                            Label("Seja um Profissional", systemImage: "checkmark.seal.fill")
-                                .foregroundColor(.blue)
-                        }
-                    }
+                                            // Link para o FORMULÁRIO (Para quem quer virar profissional)
+                                            // Só mostra se ele AINDA NÃO É profissional
+                                            if let user = authViewModel.user, !user.isHealthProfessional {
+                                                NavigationLink {
+                                                    SolicitarProfissionalView() // View do Formulário
+                                                } label: {
+                                                    Label("Seja um Profissional", systemImage: "checkmark.seal.fill")
+                                                        .foregroundColor(.blue)
+                                                }
+                                            }
+                                            
+                                            // Link para o PAINEL (Para quem JÁ É profissional)
+                                            // Só aparece se isHealthProfessional for true
+                                            if let user = authViewModel.user, user.isHealthProfessional {
+                                                NavigationLink {
+                                                    ProfissionalView() // View do Dashboard (Criar Treino)
+                                                } label: {
+                                                    Label("Painel do Personal", systemImage: "dumbbell.fill")
+                                                        .foregroundColor(.purple)
+                                                }
+                                            }
+                                        }
                     
                     Section("App") {
                         NavigationLink {
@@ -60,23 +75,9 @@ struct PerfilView: View {
                         } label: {
                             Label("Sobre", systemImage: "info.circle")
                         }
-                        
-                        Button {
-                            abrirAppStore()
-                        } label: {
-                            Label("Avaliar na App Store", systemImage: "star.circle")
-                        }
                     }
                     
                     Section {
-                        NavigationLink {
-                            DeleteAccountView()
-                                .environmentObject(authViewModel)
-                        } label: {
-                            Label("Excluir Conta", systemImage: "trash.circle")
-                                .foregroundColor(.red)
-                        }
-                    
                         Button(role: .destructive) {
                             showLogoutAlert = true
                         } label: {
@@ -115,6 +116,12 @@ struct PerfilView: View {
                     Text(error)
                 }
             }
+            .onAppear {
+                        // ADICIONE ISSO: Força a atualização dos dados toda vez que abrir o perfil
+                        Task {
+                            await authViewModel.refreshUserData()
+                        }
+                    }
         }
     }
     
@@ -154,12 +161,7 @@ struct PerfilView: View {
         }
     }
     
-    private func abrirAppStore() {
-        if let url = URL(string: "https://apps.apple.com/app/idSEU_ID") {
-            UIApplication.shared.open(url)
-        }
     }
-}
 
 struct SobreView: View {
     var body: some View {
@@ -172,7 +174,7 @@ struct SobreView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
-            Text("Versão 1.0")
+            Text("Versão 1.3")
                 .font(.title3)
                 .foregroundColor(.secondary)
             
@@ -183,7 +185,7 @@ struct SobreView: View {
             
             Spacer()
             
-            Text("Desenvolvido com dedicação")
+            Text("Desenvolvido com dedicaçãoe com muitos bugs")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

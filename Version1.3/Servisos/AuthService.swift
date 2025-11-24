@@ -207,33 +207,39 @@ extension AuthService {
         print("✅ Conta deletada com sucesso")
     }
     
-     func deleteUserData(userUID: String) async throws {
-        let db = Firestore.firestore()
-        
-        // Deletar todos os treinos do usuário
-        let treinosSnapshot = try await db.collection("treinos")
-            .whereField("userUID", isEqualTo: userUID)
-            .getDocuments()
-        
-        for document in treinosSnapshot.documents {
-            // Deletar exercícios deste treino
-            let exerciciosSnapshot = try await db.collection("exercicios")
-                .whereField("treinoID", isEqualTo: document.documentID)
+    func deleteUserData(userUID: String) async throws {
+            let db = Firestore.firestore()
+            
+            print("🗑️ Iniciando exclusão de dados do usuário: \(userUID)")
+            
+            // 1. Buscar todos os treinos do usuário
+            let treinosSnapshot = try await db.collection("treinos")
+                .whereField("userUID", isEqualTo: userUID)
                 .getDocuments()
             
-            for exercicioDoc in exerciciosSnapshot.documents {
-                try await exercicioDoc.reference.delete()
+            // 2. Deletar cada treino (os exercícios estão dentro deles, então vão junto)
+            for document in treinosSnapshot.documents {
+                try await document.reference.delete()
             }
             
-            // Deletar o treino
-            try await document.reference.delete()
+            // 3. Deletar favoritos do usuário
+            let favoritosSnapshot = try await db.collection("favoritos")
+                .whereField("userUID", isEqualTo: userUID)
+                .getDocuments()
+                
+            for favDoc in favoritosSnapshot.documents {
+                try await favDoc.reference.delete()
+            }
+            
+            // 4. Deletar solicitações profissionais (se houver)
+            let solicitacaoRef = db.collection("solicitacoes_profissionais").document(userUID)
+            try? await solicitacaoRef.delete() // try? pois pode não existir
+            
+            // 5. Deletar o documento do usuário por último
+            try await db.collection("users").document(userUID).delete()
+            
+            print("✅ Todos os dados do usuário deletados com sucesso")
         }
-        
-        // Deletar dados do usuário
-        try await db.collection("users").document(userUID).delete()
-        
-        print("✅ Todos os dados do usuário deletados do Firestore")
-    }
         func signInWithGoogle(idToken: String, accessToken: String) async throws {
             print("🟡 AuthService: Iniciando signIn com Google")
             

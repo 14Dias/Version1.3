@@ -1,25 +1,32 @@
-// ViewModels/MenuViewModel.swift - VERIFIQUE SE ESTÁ ASSIM
+// ViewModels/MenuViewModel.swift
 import SwiftUI
 import Combine
 
 @MainActor
 class MenuViewModel: ObservableObject {
+    // MARK: - Published Properties
     @Published var selectedSection = "Em Alta"
     @Published var showSideMenu = false
     @Published var showingProfileView = false
     @Published var isLoading = false
-    @Published var treinos: [Treino] = []
     
+    // Dados do Firebase
+    @Published var treinos: [Treino] = []
+    @Published var conteudos: [Conteudo] = [] // ✅ NOVO: Lista de conteúdos
+    
+    // MARK: - Private Properties
     private let firestoreService = FirestoreService()
+    
     private var userUID: String = "" {
         didSet {
             if !userUID.isEmpty && oldValue != userUID {
                 print("🟢 MenuViewModel - UserUID atualizado: \(userUID)")
-                loadTreinos()
+                loadData() // ✅ Carrega tudo quando o usuário muda
             }
         }
     }
     
+    // MARK: - Constants
     let sections = ["Em Alta", "Novidades", "Recomendados", "Favoritos"]
     let menuItems = [
         ("house.fill", "Início"),
@@ -29,28 +36,34 @@ class MenuViewModel: ObservableObject {
         ("gearshape.fill", "Configurações")
     ]
     
-    var mediaItems: [MediaItem] {
-        [
-            MediaItem(title: "Técnica de Levantamento", duration: "15 min", thumbnail: "dumbbell.fill", category: "Força"),
-            MediaItem(title: "Respiração \nno Yoga", duration: "10 min", thumbnail: "figure.yoga", category: "Flexibilidade"),
-            MediaItem(title: "Aquecimento Completo", duration: "8 min", thumbnail: "figure.run", category: "Cardio")
-        ]
-    }
+    // Mantemos 'mediaItems' vazio ou computado para não quebrar códigos antigos que ainda o chamem,
+    // mas a View agora deve usar 'conteudos'.
+    var mediaItems: [MediaItem] { [] }
     
+    // MARK: - Init
     init(userUID: String) {
         print("🟡 MenuViewModel inicializado com UserUID: '\(userUID)'")
         if !userUID.isEmpty {
             self.userUID = userUID
-            loadTreinos()
+            loadData()
         }
     }
     
+    // MARK: - Public Methods
+    
     func atualizarUserUID(_ novoUserUID: String) {
         guard !novoUserUID.isEmpty, novoUserUID != userUID else {
-            print("🟡 MenuViewModel - UserUID igual ou vazio: '\(novoUserUID)'")
+            // print("🟡 MenuViewModel - UserUID igual ou vazio: '\(novoUserUID)'")
             return
         }
         self.userUID = novoUserUID
+        // O didSet de userUID chamará loadData() automaticamente
+    }
+    
+    // ✅ Função central para carregar todos os dados da tela
+    func loadData() {
+        loadTreinos()
+        loadConteudos()
     }
     
     func loadTreinos() {
@@ -59,46 +72,61 @@ class MenuViewModel: ObservableObject {
             return
         }
         
-        print("🟢 MenuViewModel - Carregando treinos para UserUID: \(userUID)")
         isLoading = true
         
         Task {
             do {
-                treinos = try await firestoreService.fetchTreinos(userUID: userUID)
-                isLoading = false
-                print("🟢 MenuViewModel: Carregados \(treinos.count) treinos do Firestore para usuário: \(userUID)")
+                let treinosCarregados = try await firestoreService.fetchTreinos(userUID: userUID)
+                self.treinos = treinosCarregados
+                self.isLoading = false
+                print("🟢 MenuViewModel: Carregados \(treinosCarregados.count) treinos.")
             } catch {
                 print("❌ Erro ao carregar treinos no MenuViewModel: \(error)")
-                isLoading = false
+                self.isLoading = false
             }
         }
-        
-        
-        func selectSection(_ section: String) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                selectedSection = section
+    }
+    
+    // ✅ Nova função para buscar os vídeos/cursos
+    func loadConteudos() {
+        Task {
+            do {
+                let itens = try await firestoreService.fetchConteudos()
+                self.conteudos = itens
+                print("🟢 MenuViewModel: Carregados \(itens.count) conteúdos de mídia.")
+            } catch {
+                print("❌ Erro ao carregar conteúdos: \(error)")
             }
         }
-        
-        func toggleSideMenu() {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                showSideMenu.toggle()
-            }
+    }
+    
+    // MARK: - UI Helper Methods
+    // (Estas funções estavam incorretamente dentro de loadTreinos no seu código original)
+    
+    func selectSection(_ section: String) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            selectedSection = section
         }
-        
-        func navigateToProfile() {
-            toggleSideMenu()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                self.showingProfileView = true
-            }
+    }
+    
+    func toggleSideMenu() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            showSideMenu.toggle()
         }
-        
-        var trendingTreinos: [Treino] {
-            Array(treinos.prefix(4))
+    }
+    
+    func navigateToProfile() {
+        toggleSideMenu()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.showingProfileView = true
         }
-        
-        var hasTreinos: Bool {
-            !treinos.isEmpty
-        }
+    }
+    
+    var trendingTreinos: [Treino] {
+        Array(treinos.prefix(4))
+    }
+    
+    var hasTreinos: Bool {
+        !treinos.isEmpty
     }
 }
