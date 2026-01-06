@@ -183,6 +183,20 @@ struct SobreView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             
+            Text("-Atualizações\n-Função profissional funcionado\n-Melhorias no design\n-Conteudos anexados a db\n")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Text("Futuras atualizações")
+                .font(.title3)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Text("-Menu exclusivo para profissionais\n-Analize de progresso dinamica\n-Outros recursos")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
             Spacer()
             
             Text("Desenvolvido com dedicaçãoe com muitos bugs")

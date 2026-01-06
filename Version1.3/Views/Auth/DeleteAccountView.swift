@@ -39,23 +39,6 @@ struct DeleteAccountView: View {
                 SecureField("Digite sua senha", text: $password)
                     .textContentType(.password)
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Para confirmar, digite exatamente:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text("deletar minha conta")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.red)
-                        .padding(8)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(4)
-                    
-                    TextField("deletar minha conta", text: $confirmationText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
             }
             
             Section {

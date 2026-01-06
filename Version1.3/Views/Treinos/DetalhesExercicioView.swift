@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct DetalhesExercicioView: View {
-    let exercicio: Exercicio // REMOVER @Bindable - apenas leitura
+    let exercicio: Exercicio 
     
     var body: some View {
         Form {

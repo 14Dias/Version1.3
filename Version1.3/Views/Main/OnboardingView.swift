@@ -40,15 +40,16 @@ struct OnboardingView: View {
                     FeatureRow(icon: "dumbbell.fill", text: "Crie treinos personalizados")
                     FeatureRow(icon: "heart.fill", text: "Acompanhe seu progresso")
                     FeatureRow(icon: "star.fill", text: "Treinos em destaque")
+                    FeatureRow(icon: "figure.archery", text: "Seja um profissonal")
                 }
                 .padding(.horizontal)
                 
                 Spacer()
                 
                 // Buttons
-                VStack(spacing: 16) {
+                VStack() {
                     // Login com Google
-                    Button {
+                    /*Button {
                         Task {
                             await loginWithGoogle()
                         }
@@ -69,7 +70,7 @@ struct OnboardingView: View {
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
                     }
-                    .disabled(viewModel.isLoading)
+                    .disabled(viewModel.isLoading)*/
                     
                     // Login com Email
 

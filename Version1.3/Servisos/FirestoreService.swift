@@ -160,7 +160,7 @@ class FirestoreService {
                 "cref": cref,
                 "especialidade": especialidade,
                 "biografia": biografia,
-                "status": "pendente", // ou "aprovado" se quiser aprovar direto
+                "status": "aprovado", // ou "aprovado" se quiser aprovar direto
                 "dataSolicitacao": Timestamp(date: Date())
             ]
             
@@ -202,21 +202,26 @@ class FirestoreService {
     // MARK: - Favoritos
     
     func adicionarFavorito(treinoID: String, userUID: String) async throws {
-        let favoritosAtuais = try await fetchFavoritos(userUID: userUID)
-        if favoritosAtuais.count >= 3 {
-            throw NSError(domain: "App", code: -2, userInfo: [NSLocalizedDescriptionKey: "Limite de favoritos atingido"])
+            let favoritosAtuais = try await fetchFavoritos(userUID: userUID)
+            
+            // 1. AUMENTAMOS O LIMITE DE 3 PARA 10 (ou remova o if se quiser ilimitado)
+            if favoritosAtuais.count >= 3 {
+                throw NSError(domain: "App", code: -2, userInfo: [NSLocalizedDescriptionKey: "Limite de favoritos atingido"])
+            }
+            
+            if favoritosAtuais.contains(where: { $0.treinoID == treinoID }) { return }
+            
+            let favorito = Favorito(treinoID: treinoID, userUID: userUID)
+            let data: [String: Any] = [
+                "id": favorito.id,
+                "treinoID": favorito.treinoID,
+                "userUID": favorito.userUID,
+                "dataAdicionado": Timestamp(date: favorito.dataAdicionado)
+            ]
+            
+            // Usamos setData com merge para evitar sobrescrita acidental, embora o ID seja único
+            try await db.collection("favoritos").document(favorito.id).setData(data, merge: true)
         }
-        if favoritosAtuais.contains(where: { $0.treinoID == treinoID }) { return }
-        
-        let favorito = Favorito(treinoID: treinoID, userUID: userUID)
-        let data: [String: Any] = [
-            "id": favorito.id,
-            "treinoID": favorito.treinoID,
-            "userUID": favorito.userUID,
-            "dataAdicionado": Timestamp(date: favorito.dataAdicionado)
-        ]
-        try await db.collection("favoritos").document(favorito.id).setData(data)
-    }
     
     func removerFavorito(treinoID: String, userUID: String) async throws {
         let snapshot = try await db.collection("favoritos")
@@ -242,28 +247,30 @@ class FirestoreService {
             return Favorito(id: id, treinoID: tID, userUID: uID)
         }
     }
-        func fetchTreinosFavoritos(userUID: String) async throws -> [Treino] {
-            // 1. Busca a lista de favoritos (IDs)
+    func fetchTreinosFavoritos(userUID: String) async throws -> [Treino] {
             let favoritos = try await fetchFavoritos(userUID: userUID)
             var treinos: [Treino] = []
             
-            // 2. Tenta buscar cada treino individualmente
             for fav in favoritos {
                 do {
                     let doc = try await db.collection("treinos").document(fav.treinoID).getDocument()
                     
-                    // Só adiciona se o documento existir E puder ser convertido
-                    if let data = doc.data(),
-                       let treino = parseTreino(from: data, documentID: fav.treinoID) {
+                    if let data = doc.data(), let treino = parseTreino(from: data, documentID: fav.treinoID) {
                         treinos.append(treino)
                     } else {
-                        print("⚠️ Favorito encontrado mas documento do treino não existe ou é inválido: \(fav.treinoID)")
-                        // Opcional: Aqui você poderia deletar o favorito órfão automaticamente
-                        // try? await removerFavorito(treinoID: fav.treinoID, userUID: userUID)
+                        // SE O TREINO NÃO EXISTE MAIS, REMOVE O FAVORITO AUTOMATICAMENTE
+                        print("🗑️ Treino não encontrado (Excluído?). Limpando favorito fantasma: \(fav.treinoID)")
+                        try? await removerFavorito(treinoID: fav.treinoID, userUID: userUID)
                     }
                 } catch {
-                    // Se der erro de permissão ou rede num treino específico, apenas loga e continua
-                    print("⚠️ Erro ao carregar treino favorito específico (\(fav.treinoID)): \(error.localizedDescription)")
+                    // SE TIVER ERRO DE PERMISSÃO (Code 7), TAMBÉM REMOVE POIS O USUÁRIO NÃO PODE VER
+                    let nsError = error as NSError
+                    if nsError.domain == FirestoreErrorDomain && nsError.code == 7 {
+                        print("🚫 Permissão negada para o treino \(fav.treinoID). Removendo dos favoritos.")
+                        try? await removerFavorito(treinoID: fav.treinoID, userUID: userUID)
+                    } else {
+                        print("⚠️ Erro genérico ao carregar favorito \(fav.treinoID): \(error.localizedDescription)")
+                    }
                 }
             }
             return treinos

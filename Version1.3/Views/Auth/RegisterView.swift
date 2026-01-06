@@ -46,10 +46,10 @@ struct RegisterView: View {
                         SecureField("Confirmar Senha", text: $confirmPassword)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                         
-                        // Toggle Profissional de Saúde
+                        /* //Toggle Profissional de Saúde
                         Toggle("Sou profissional da saúde", isOn: $isHealthProfessional)
                             .toggleStyle(SwitchToggleStyle(tint: .blue))
-                            .padding()
+                            .padding()*/
                         
                         if !authViewModel.errorMessage.isEmpty {
                             Text(authViewModel.errorMessage)

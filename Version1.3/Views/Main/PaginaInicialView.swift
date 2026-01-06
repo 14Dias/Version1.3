@@ -1,14 +1,24 @@
-// Views/Main/PaginaInicialView.swift
 import SwiftUI
 import Combine
+import UIKit // Necessário para configurar a aparência da TabBar
 
-// Views/Main/PaginaInicialView.swift - VERSÃO MELHORADA
 struct PaginaInicialView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     
+    // MARK: - Configuração da Aparência da TabBar
+    init() {
+        let appearance = UITabBarAppearance()
+        
+        // 1. Configura o fundo para ser transparente com efeito de vidro (Blur)
+        appearance.configureWithTransparentBackground()
+        
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
     var body: some View {
         TabView {
-            // Aba 1: Menu Principal
+            // Aba 1: Menu Principal (Início)
             NavigationStack {
                 MenuView()
                     .environmentObject(authViewModel)
@@ -17,31 +27,23 @@ struct PaginaInicialView: View {
                 Label("Início", systemImage: "house.fill")
             }
             
-            // Aba 2: Montar Treino
-            NavigationStack {
-                MontarTreinoView()
-                    .environmentObject(authViewModel)
-            }
-            .tabItem {
-                Label("Criar", systemImage: "plus.circle.fill")
-            }
-            
-            // Aba 3: Treinos Salvos
+            // Aba 2: Meus Treinos
             NavigationStack {
                 TreinosSalvosView()
                     .environmentObject(authViewModel)
             }
             .tabItem {
-                Label("Meus Treinos", systemImage: "list.bullet.rectangle.portrait")
+                Label("Meus Treinos", systemImage: "dumbbell.fill")
             }
             
-            // Aba 4: Perfil
-            NavigationStack {
-                PerfilView()
-                    .environmentObject(authViewModel)
-            }
-            .tabItem {
-                Label("Perfil", systemImage: "person.circle.fill")
+            // Aba 3: Progresso
+            if let uid = authViewModel.currentUserUID {
+                NavigationStack {
+                    ProgressoView(userUID: uid)
+                }
+                .tabItem {
+                    Label("Progresso", systemImage: "chart.xyaxis.line")
+                }
             }
         }
         .tint(.blue)

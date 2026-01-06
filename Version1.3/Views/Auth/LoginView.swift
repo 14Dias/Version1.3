@@ -56,7 +56,7 @@ struct LoginView: View {
                     .disabled(authViewModel.isLoading || email.isEmpty || password.isEmpty)
                     .opacity((authViewModel.isLoading || email.isEmpty || password.isEmpty) ? 0.7 : 1.0)
                     
-                    // Divisor
+                    /* Divisor
                     HStack {
                         Rectangle().frame(height: 1).foregroundColor(.gray.opacity(0.3))
                         Text("OU").font(.caption).foregroundColor(.secondary)
@@ -64,12 +64,12 @@ struct LoginView: View {
                     }
                     .padding(.vertical, 5)
                     
-                    // Botão Google (NOVO)
+                   // Botão Google (NOVO)
                     Button {
                         Task { await authViewModel.signInWithGoogle() }
                     } label: {
                         HStack {
-                            Image("google") // Use "Google" se tiver o asset, senão um ícone genérico ou texto
+                            Image("google")
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 30) 
@@ -88,7 +88,7 @@ struct LoginView: View {
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(Color.white.opacity(0.3), lineWidth: 1)
                         )
-                    }
+                    }*/
                 }
                 .padding(.horizontal, 30)
                 

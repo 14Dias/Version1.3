@@ -74,3 +74,63 @@ struct AdicionarExercicioView: View {
         }
     }
 }
+
+struct WgerExerciseListView: View {
+    @State private var exercises: [WgerExercise] = []
+    @State private var isLoading = true
+    private let service = WgerService()
+    
+    // Callback para quando o usuário escolher um exercício
+    var onSelect: (WgerExercise) -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List(exercises) { exercise in
+                Button {
+                    onSelect(exercise)
+                } label: {
+                    HStack {
+                        // Exibir imagem se existir
+                        if let urlString = exercise.mainImageUrl, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFit()
+                            } placeholder: {
+                                Color.gray.opacity(0.3)
+                            }
+                            .frame(width: 60, height: 60)
+                            .cornerRadius(8)
+                        } else {
+                            // Placeholder se não tiver imagem
+                            Image(systemName: "dumbbell.fill")
+                                .frame(width: 60, height: 60)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                        
+                        VStack(alignment: .leading) {
+                            Text(exercise.name)
+                                .font(.headline)
+                            // Remove tags HTML da descrição se necessário (Wger retorna HTML)
+                            Text("Toque para selecionar")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Exercícios Wger")
+            .task {
+                do {
+                    exercises = try await service.fetchExercises()
+                    isLoading = false
+                } catch {
+                    print("Erro Wger: \(error)")
+                    isLoading = false
+                }
+            }
+            .overlay {
+                if isLoading { ProgressView() }
+            }
+        }
+    }
+}

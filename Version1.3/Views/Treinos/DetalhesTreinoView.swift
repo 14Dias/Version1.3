@@ -1,9 +1,11 @@
-// Views/Treinos/DetalhesTreinoView.swift - VERSÃO CORRIGIDA
 import SwiftUI
 
 struct DetalhesTreinoView: View {
     let treino: Treino
+    // MARK: - Propriedades Adicionadas
+    @EnvironmentObject var authViewModel: AuthViewModel // Necessário para acessar o ID do usuário
     @State private var showingEditView = false
+    @State private var showRegistrarSheet = false // Controla a abertura da tela de registro
     
     var body: some View {
         List {
@@ -12,6 +14,8 @@ struct DetalhesTreinoView: View {
                 LabeledContent("Data", value: treino.data.formatted(date: .long, time: .shortened))
                 LabeledContent("Total de exercícios", value: "\(treino.exercicios.count)")
             }
+            
+    
             
             Section("Exercícios") {
                 ForEach(treino.exercicios) { exercicio in
@@ -30,6 +34,16 @@ struct DetalhesTreinoView: View {
                     .padding(.vertical, 4)
                 }
             }
+            // MARK: - Botão de Ação (Novo)
+            Section {
+                Button {
+                    showRegistrarSheet = true
+                } label: {
+                    Label("Concluir Treino Agora", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.headline)
+                }
+            }
         }
         .navigationTitle("Detalhes do Treino")
         .navigationBarTitleDisplayMode(.inline)
@@ -40,12 +54,12 @@ struct DetalhesTreinoView: View {
                 }
             }
         }
+        // Sheet de Edição (Existente)
         .sheet(isPresented: $showingEditView) {
             NavigationStack {
                 EditarTreinoView(
                     treino: treino,
                     onSave: {
-                        // Atualizar a view após salvar
                         showingEditView = false
                     },
                     onCancel: {
@@ -54,5 +68,19 @@ struct DetalhesTreinoView: View {
                 )
             }
         }
+        // MARK: - Sheet de Registro (Novo)
+        .sheet(isPresented: $showRegistrarSheet) {
+            if let uid = authViewModel.currentUserUID {
+                // Certifique-se de ter criado o arquivo 'RegistrarExecucaoView.swift' anteriormente
+                RegistrarExecucaoView(treino: treino, userUID: uid)
+            } else {
+                VStack {
+                    Text("Erro: Usuário não identificado")
+                    Button("Fechar") { showRegistrarSheet = false }
+                }
+            }
+            
+        }
+        
     }
 }
